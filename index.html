@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Customizable Photo Booth</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f9f9f9;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .booth {
+            background: #fff;
+            padding: 20px;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 800px;
+            text-align: center;
+        }
+
+        video {
+            width: 100%;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            position: relative;
+            background: #000;
+        }
+
+        video[data-countdown]::after {
+            content: attr(data-countdown);
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 5rem;
+            color: white;
+            text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.7);
+            z-index: 10;
+        }
+
+        .flash {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            opacity: 0;
+            pointer-events: none;
+            border-radius: 12px;
+        }
+
+        .flash.active {
+            animation: flash 0.3s ease-out;
+        }
+
+        @keyframes flash {
+            0% {
+                opacity: 0.8;
+            }
+
+            100% {
+                opacity: 0;
+            }
+        }
+
+        canvas {
+            display: none;
+        }
+
+        .photos {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .photos img {
+            width: 100%;
+            border-radius: 8px;
+            object-fit: cover;
+            aspect-ratio: 1/1;
+            cursor: pointer;
+            transition: transform 0.2s;
+            position: relative;
+        }
+
+        .photos img:hover,
+        .photos img:focus {
+            transform: scale(1.05);
+            outline: 2px solid #333;
+        }
+
+        .button-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 10px;
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            background-color: #333;
+            color: #fff;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.3s ease, transform 0.1s;
+            touch-action: manipulation;
+        }
+
+        button:hover,
+        button:focus {
+            background-color: #555;
+            transform: translateY(-2px);
+        }
+
+        button:disabled {
+            background-color: #999;
+            cursor: not-allowed;
+        }
+
+        .status {
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+            color: #555;
+            min-height: 1.2em;
+        }
+
+        .loading::after {
+            content: 'Loading camera...';
+            display: inline-block;
+            animation: dots 1.5s infinite;
+        }
+
+        @keyframes dots {
+            0% {
+                content: 'Loading camera.';
+            }
+
+            33% {
+                content: 'Loading camera..';
+            }
+
+            66% {
+                content: 'Loading camera...';
+            }
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        select,
+        input[type="text"],
+        input[type="color"] {
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            font-size: 1rem;
+            margin: 5px 0;
+            width: 100%;
+            max-width: 200px;
+        }
+
+        label {
+            font-size: 0.9rem;
+            color: #333;
+            text-align: left;
+        }
+
+        .preview {
+            margin-top: 15px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 10px;
+            background: #f5f5f5;
+        }
+
+        .preview img,
+        .preview canvas {
+            width: 100%;
+            border-radius: 4px;
+        }
+
+        /* Customization panel */
+        .customization-panel {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin: 15px 0;
+            justify-content: center;
+        }
+
+        .customization-section {
+            background: #f0f0f0;
+            padding: 10px;
+            border-radius: 8px;
+            width: 100%;
+            max-width: 300px;
+        }
+
+        .customization-section h3 {
+            margin-bottom: 10px;
+            font-size: 1rem;
+            color: #333;
+        }
+
+        .frame-options,
+        .sticker-options {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .frame-option,
+        .sticker-option {
+            width: 100%;
+            aspect-ratio: 1/1;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            background-color: white;
+        }
+
+        .frame-option:hover,
+        .sticker-option:hover,
+        .frame-option.selected,
+        .sticker-option.selected {
+            border-color: #333;
+            transform: scale(1.05);
+        }
+
+        .sticker-option {
+            background-size: 70%;
+        }
+
+        /* Frame preview */
+        .frame-preview {
+            position: relative;
+            width: 100px;
+            height: 100px;
+            margin: 10px auto;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .frame-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .frame-preview .frame-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            background-size: contain;
+            background-repeat: no-repeat;
+        }
+
+        /* Tab interface */
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 15px;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .tab.active {
+            border-bottom-color: #333;
+            font-weight: bold;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .photos {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .frame-options,
+            .sticker-options {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="booth" role="application" aria-label="Photo Booth Application">
+        <div class="status" id="status" role="status"></div>
+        <div class="video-container" style="position: relative;">
+            <video id="video" autoplay muted playsinline aria-label="Camera preview"></video>
+            <div class="flash" id="flash"></div>
+        </div>
+        <canvas id="canvas" aria-hidden="true"></canvas>
+
+        <div class="tabs">
+            <div class="tab active" data-tab="settings">Settings</div>
+            <div class="tab" data-tab="frames">Frames</div>
+            <div class="tab" data-tab="stickers">Stickers</div>
+        </div>
+
+        <div class="tab-content active" id="settings">
+            <div class="controls">
+                <label for="cameraSelect">Camera:</label>
+                <select id="cameraSelect" aria-label="Select camera">
+                    <option value="user">Front Camera</option>
+                    <option value="environment">Back Camera</option>
+                </select>
+                <label for="layoutSelect">Photo Layout:</label>
+                <select id="layoutSelect" aria-label="Select photo layout">
+                    <option value="strip">4x1 Photo Strip (2x6")</option>
+                    <option value="grid">2x2 Grid (4x6")</option>
+                    <option value="single">Single Photo (4x6")</option>
+                </select>
+                <label for="frameText">Frame Text (e.g., Event Name):</label>
+                <input type="text" id="frameText" placeholder="Enter event name"
+                    aria-label="Enter text for photo frame">
+                <label for="frameColor">Text Color:</label>
+                <input type="color" id="frameColor" value="#333333" aria-label="Select frame color">
+            </div>
+        </div>
+
+        <div class="tab-content" id="frames">
+            <div class="customization-section">
+                <h3>Select Frame Style</h3>
+                <div class="frame-preview">
+                    <img src="https://via.placeholder.com/100" id="framePreviewImage" alt="Frame preview">
+                    <div class="frame-overlay" id="framePreviewOverlay"></div>
+                </div>
+                <div class="frame-options" id="frameOptions">
+                    <!-- Frames will be added here by JavaScript -->
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-content" id="stickers">
+            <div class="customization-section">
+                <h3>Select Stickers</h3>
+                <div class="sticker-options" id="stickerOptions">
+                    <!-- Stickers will be added here by JavaScript -->
+                </div>
+            </div>
+        </div>
+
+        <div class="button-group">
+            <button onclick="toggleCamera()" id="cameraBtn" aria-label="Start or stop camera">Start Camera</button>
+            <button onclick="startPhotoBooth()" id="photoBtn" aria-label="Take photos" disabled>Take Photos</button>
+            <button onclick="downloadPrint()" id="printBtn" aria-label="Download print layout" disabled>Download
+                Print</button>
+            <button onclick="clearPhotos()" id="clearBtn" aria-label="Clear photos">Clear Photos</button>
+        </div>
+
+        <div class="photos" id="photoGrid" role="region" aria-label="Captured photos"></div>
+
+        <div class="preview" id="preview" role="region" aria-label="Print layout preview">
+            <h3>Print Preview</h3>
+            <canvas id="previewCanvas"></canvas>
+        </div>
+    </div>
+
+    <script>
+        const video = document.getElementById("video");
+        const canvas = document.getElementById("canvas");
+        const previewCanvas = document.getElementById("previewCanvas");
+        const photoGrid = document.getElementById("photoGrid");
+        const status = document.getElementById("status");
+        const flash = document.getElementById("flash");
+        const cameraBtn = document.getElementById("cameraBtn");
+        const photoBtn = document.getElementById("photoBtn");
+        const printBtn = document.getElementById("printBtn");
+        const clearBtn = document.getElementById("clearBtn");
+        const cameraSelect = document.getElementById("cameraSelect");
+        const layoutSelect = document.getElementById("layoutSelect");
+        const frameText = document.getElementById("frameText");
+        const frameColor = document.getElementById("frameColor");
+        const framePreviewImage = document.getElementById("framePreviewImage");
+        const framePreviewOverlay = document.getElementById("framePreviewOverlay");
+        const frameOptions = document.getElementById("frameOptions");
+        const stickerOptions = document.getElementById("stickerOptions");
+        const tabs = document.querySelectorAll(".tab");
+        const tabContents = document.querySelectorAll(".tab-content");
+        const ctx = canvas.getContext("2d");
+        const previewCtx = previewCanvas.getContext("2d");
+        let stream = null;
+        let photos = [];
+        let selectedFrame = null;
+        let selectedStickers = [];
+
+        // Sample frame and sticker data
+        const frames = [
+            { id: 'frame1', name: 'Polaroid', url: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iOTAiIGhlaWdodD0iODAiIHg9IjUiIHk9IjUiIHJ4PSIyIiByeT0iMiIgZmlsbD0id2hpdGUiIHN0cm9rZT0iIzMzMyIgc3Ryb2tlLXdpZHRoPSIxIi8+PHJlY3Qgd2lkdGg9IjcwIiBoZWlnaHQ9IjUwIiB4PSIxNSIgeT0iMTUiIGZpbGw9IiNmNWY1ZjUiIHN0cm9rZT0iIzMzMyIgc3Ryb2tlLXdpZHRoPSIwLjUiLz48L3N2Zz4=' },
+            { id: 'frame2', name: 'Vintage', url: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iOTAiIGhlaWdodD0iODAiIHg9IjUiIHk9IjUiIHJ4PSIyIiByeT0iMiIgZmlsbD0iI2ZmZWVkZSIgc3Ryb2tlPSIjYzBhNTUwIiBzdHJva2Utd2lkdGg9IjIiLz48cmVjdCB3aWR0aD0iODAiIGhlaWdodD0iNjAiIHg9IjEwIiB5PSIxMCIgZmlsbD0idHJhbnNwYXJlbnQiIHN0cm9rZT0iI2MwYTU1MCIgc3Ryb2tlLXdpZHRoPSIxIiBzdHJva2UtZGFzaGFycmF5PSI1LDUiLz48L3N2Zz4=' },
+            { id: 'frame3', name: 'Modern', url: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iOTAiIGhlaWdodD0iODAiIHg9IjUiIHk9IjUiIHJ4PSIyIiByeT0iMiIgZmlsbD0id2hpdGUiIHN0cm9rZT0iIzAwYjJkZSIgc3Ryb2tlLXdpZHRoPSIzIi8+PHJlY3Qgd2lkdGg9Ijc1IiBoZWlnaHQ9IjU1IiB4PSIxMi41IiB5PSIxMi41IiBmaWxsPSJ0cmFuc3BhcmVudCIgc3Ryb2tlPSIjMDBiMmRlIiBzdHJva2Utd2lkdGg9IjEiLz48L3N2Zz4=' },
+            { id: 'frame4', name: 'Floral', url: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iOTAiIGhlaWdodD0iODAiIHg9IjUiIHk9IjUiIHJ4PSIyIiByeT0iMiIgZmlsbD0iI2ZmZjVmZiIgc3Ryb2tlPSIjZmY2NmJiIiBzdHJva2Utd2lkdGg9IjIiLz48cGF0aCBkPSJNMjAgMjBsMTAgMTAgMTAgLTEwIDEwIDEwIiBzdHJva2U9IiNmZjY2YmIiIHN0cm9rZS13aWR0aD0iMSIgZmlsbD0ibm9uZSIvPjxwYXRoIGQ9Ik02MCAyMGwxMCAxMCAxMCAtMTAgMTAgMTAiIHN0cm9rZT0iI2ZmNjZiYiIgc3Ryb2tlLXdpZHRoPSIxIiBmaWxsPSJub25lIi8+PC9zdmc+' },
+            { id: 'frame5', name: 'Hearts', url: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iOTAiIGhlaWdodD0iODAiIHg9IjUiIHk9IjUiIHJ4PSIyIiByeT0iMiIgZmlsbD0iI2ZmZWVlZSIgc3Ryb2tlPSIjZmY2NmJiIiBzdHJva2Utd2lkdGg9IjIiLz48cGF0aCBkPSJNMjUgMzBjNSAtMTAgMTUgLTEwIDIwIDBjNSAxMCAxNSAxMCAyMCAwIiBzdHJva2U9IiNmZjY2YmIiIHN0cm9rZS13aWR0aD0iMSIgZmlsbD0ibm9uZSIvPjxwYXRoIGQ9Ik02NSAzMGM1IC0xMCAxNSAtMTAgMjAgMGM1IDEwIDE1IDEwIDIwIDAiIHN0cm9rZT0iI2ZmNjZiYiIgc3Ryb2tlLXdpZHRoPSIxIiBmaWxsPSJub25lIi8+PC9zdmc+' },
+            { id: 'frame6', name: 'None', url: '' }
+        ];
+
+        const stickers = [
+            { id: 'sticker1', name: 'Heart', url: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cGF0aCBkPSJNNTAgMzBjLTE1IC0yMCAtMzAgLTIwIC0zNSAtMTBjLTUgMTAgMCAyNSAzNSA1MGMzNSAtMjUgNDAgLTQwIDM1IC01MGMtNSAtMTAgLTIwIC0xMCAtMzUgMTB6IiBmaWxsPSIjZmY2NmJiIi8+PC9zdmc+' },
+            { id: 'sticker2', name: 'Star', url: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cGF0aCBkPSJNNTAgMTVsMTUgMzVoMzVsLTMwIDI1IDEwIDM1bC0zMCAtMjBsLTMwIDIwIDEwIC0zNWwtMzAgLTI1aDM1eiIgZmlsbD0iI2ZmYzEwNyIvPjwvc3ZnPg==' },
+            { id: 'sticker3', name: 'Smile', url: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0MCIgZmlsbD0iI2ZmYzEwNyIgc3Ryb2tlPSIjZmY5ODAwIiBzdHJva2Utd2lkdGg9IjIiLz48Y2lyY2xlIGN4PSIzNSIgY3k9IjQwIiByPSI1IiBmaWxsPSIjMzMzIi8+PGNpcmNsZSBjeD0iNjUiIGN5PSI0MCIgcj0iNSIgZmlsbD0iIzMzMyIvPjxwYXRoIGQ9Ik0zNSA2NWMzIDUgMTAgMTAgMjAgMTBjMTAgMCAxNyAtNSAyMCAtMTAiIHN0cm9rZT0iIzMzMyIgc3Ryb2tlLXdpZHRoPSIyIiBmaWxsPSJub25lIi8+PC9zdmc+' },
+            { id: 'sticker4', name: 'Crown', url: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cGF0aCBkPSJNMjAgNTBsMTUgLTIwIDE1IDIwIDE1IC0yMCAxNSAyMCAxNSAtMjAgMTUgMjB2MjBoLTkwdi0yMHoiIGZpbGw9IiNmZmMxMDciIHN0cm9rZT0iI2ZmOTgwMCIgc3Ryb2tlLXdpZHRoPSIyIi8+PC9zdmc+' },
+            { id: 'sticker5', name: 'Mustache', url: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cGF0aCBkPSJNMzAgNjBjMTAgMTAgMjAgMTAgMzAgMGMxMCAtMTAgMjAgLTEwIDMwIDBjLTEwIC0xMCAtMjAgLTEwIC0zMCAwYy0xMCAtMTAgLTIwIC0xMCAtMzAgMCIgZmlsbD0iIzMzMyIgc3Ryb2tlPSIjMzMzIiBzdHJva2Utd2lkdGg9IjIiLz48L3N2Zz4=' },
+            { id: 'sticker6', name: 'Glasses', url: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48ZWxsaXBzZSBjeD0iMzUiIGN5PSI0MCIgcng9IjE1IiByeT0iMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzMzMyIgc3Ryb2tlLXdpZHRoPSIyIi8+PGVsbGlwc2UgY3g9IjY1IiBjeT0iNDAiIHJ4PSIxNSIgcnk9IjEwIiBmaWxsPSJub25lIiBzdHJva2U9IiMzMzMiIHN0cm9rZS13aWR0aD0iMiIvPjxwYXRoIGQ9Ik0yMCA0MGgxNSIgc3Ryb2tlPSIjMzMzIiBzdHJva2Utd2lkdGg9IjIiLz48cGF0aCBkPSJNNjUgNDBoMTUiIHN0cm9rZT0iIzMzMyIgc3Ryb2tlLXdpZHRoPSIyIi8+PHBhdGggZD0iTTUwIDQwbC0xMCAxMCIgc3Ryb2tlPSIjMzMzIiBzdHJva2Utd2lkdGg9IjIiLz48L3N2Zz4=' }
+        ];
+
+        // Initialize the app
+        function init() {
+            setupTabs();
+            loadFrames();
+            loadStickers();
+            updateStatus("Select a camera, customize your design, and click 'Start Camera'.");
+        }
+
+        // Set up tab navigation
+        function setupTabs() {
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tabContents.forEach(c => c.classList.remove('active'));
+
+                    tab.classList.add('active');
+                    const tabId = tab.getAttribute('data-tab');
+                    document.getElementById(tabId).classList.add('active');
+                });
+            });
+        }
+
+        // Load frame options
+        function loadFrames() {
+            frameOptions.innerHTML = '';
+            frames.forEach(frame => {
+                const frameOption = document.createElement('div');
+                frameOption.className = 'frame-option';
+                frameOption.style.backgroundImage = frame.url ? `url('${frame.url}')` : 'none';
+                frameOption.title = frame.name;
+                frameOption.dataset.id = frame.id;
+                frameOption.dataset.url = frame.url;
+
+                frameOption.addEventListener('click', () => {
+                    document.querySelectorAll('.frame-option').forEach(opt => opt.classList.remove('selected'));
+                    frameOption.classList.add('selected');
+                    selectedFrame = frame.url;
+                    updateFramePreview();
+                });
+
+                frameOptions.appendChild(frameOption);
+            });
+        }
+
+        // Load sticker options
+        function loadStickers() {
+            stickerOptions.innerHTML = '';
+            stickers.forEach(sticker => {
+                const stickerOption = document.createElement('div');
+                stickerOption.className = 'sticker-option';
+                stickerOption.style.backgroundImage = `url('${sticker.url}')`;
+                stickerOption.title = sticker.name;
+                stickerOption.dataset.id = sticker.id;
+                stickerOption.dataset.url = sticker.url;
+
+                stickerOption.addEventListener('click', () => {
+                    stickerOption.classList.toggle('selected');
+                    updateSelectedStickers();
+                });
+
+                stickerOptions.appendChild(stickerOption);
+            });
+        }
+
+        // Update selected stickers list
+        function updateSelectedStickers() {
+            selectedStickers = [];
+            document.querySelectorAll('.sticker-option.selected').forEach(opt => {
+                selectedStickers.push({
+                    id: opt.dataset.id,
+                    url: opt.dataset.url
+                });
+            });
+            updateFramePreview();
+        }
+
+        // Update frame preview
+        function updateFramePreview() {
+            framePreviewOverlay.style.backgroundImage = selectedFrame ? `url('${selectedFrame}')` : 'none';
+
+            // Clear previous stickers
+            framePreviewOverlay.innerHTML = '';
+
+            // Add selected stickers
+            selectedStickers.forEach((sticker, index) => {
+                const stickerEl = document.createElement('div');
+                stickerEl.style.position = 'absolute';
+                stickerEl.style.width = '30px';
+                stickerEl.style.height = '30px';
+                stickerEl.style.backgroundImage = `url('${sticker.url}')`;
+                stickerEl.style.backgroundSize = 'contain';
+                stickerEl.style.backgroundRepeat = 'no-repeat';
+
+                // Position stickers differently
+                switch (index % 4) {
+                    case 0: // Top-left
+                        stickerEl.style.top = '10px';
+                        stickerEl.style.left = '10px';
+                        break;
+                    case 1: // Top-right
+                        stickerEl.style.top = '10px';
+                        stickerEl.style.right = '10px';
+                        break;
+                    case 2: // Bottom-left
+                        stickerEl.style.bottom = '10px';
+                        stickerEl.style.left = '10px';
+                        break;
+                    case 3: // Bottom-right
+                        stickerEl.style.bottom = '10px';
+                        stickerEl.style.right = '10px';
+                        break;
+                }
+
+                framePreviewOverlay.appendChild(stickerEl);
+            });
+        }
+
+        // Update status message
+        function updateStatus(message, isLoading = false) {
+            status.textContent = message;
+            status.classList.toggle("loading", isLoading);
+            status.setAttribute("aria-live", message ? "polite" : "off");
+        }
+
+        // Request camera access with specified facing mode
+        async function initCamera(facingMode = cameraSelect.value) {
+            updateStatus("", true);
+            try {
+                // Stop any existing stream
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
+                    stream = null;
+                }
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: facingMode,
+                        width: { ideal: 640 },
+                        height: { ideal: 480 }
+                    }
+                });
+                video.srcObject = stream;
+                cameraBtn.textContent = "Stop Camera";
+                photoBtn.disabled = false;
+                updateStatus(`Using ${facingMode === 'user' ? 'front' : 'back'} camera. Customize your design and click 'Take Photos'.`);
+            } catch (err) {
+                updateStatus("Camera access denied or unavailable. Please check permissions or camera availability.");
+                console.error("Camera access error:", err);
+                // If back camera fails, try front camera
+                if (facingMode === "environment") {
+                    updateStatus("Back camera unavailable, trying front camera...");
+                    cameraSelect.value = "user";
+                    initCamera("user");
+                }
+            }
+        }
+
+        // Stop camera
+        function stopCamera() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+                video.srcObject = null;
+                cameraBtn.textContent = "Start Camera";
+                photoBtn.disabled = true;
+                printBtn.disabled = true;
+                updateStatus("Camera stopped. Select a camera and start again.");
+            }
+        }
+
+        // Toggle camera on/off
+        async function toggleCamera() {
+            if (stream) {
+                stopCamera();
+            } else {
+                await initCamera();
+            }
+        }
+
+        // Switch camera
+        async function switchCamera() {
+            if (stream) {
+                await initCamera(cameraSelect.value);
+            }
+        }
+
+        // Take a single photo with frame and stickers
+        function takePhoto() {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw the photo
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // Apply frame if selected
+            if (selectedFrame) {
+                const frameImg = new Image();
+                frameImg.src = selectedFrame;
+                ctx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
+            }
+
+            // Apply stickers
+            selectedStickers.forEach(sticker => {
+                const stickerImg = new Image();
+                stickerImg.src = sticker.url;
+                // Position stickers randomly (or you could implement drag-and-drop positioning)
+                const x = Math.random() * (canvas.width - 100);
+                const y = Math.random() * (canvas.height - 100);
+                const size = 50 + Math.random() * 50; // Random size between 50-100px
+                ctx.drawImage(stickerImg, x, y, size, size);
+            });
+
+            flash.classList.add("active");
+            setTimeout(() => flash.classList.remove("active"), 300);
+            return canvas.toDataURL("image/png");
+        }
+
+        // Create print layout
+        function createPrintLayout() {
+            const layout = layoutSelect.value;
+            const text = frameText.value || "Photo Booth";
+            const color = frameColor.value;
+            // Set canvas to 4x6 inches at 300 DPI (1200x1800 pixels)
+            previewCanvas.width = 1200;
+            previewCanvas.height = 1800;
+            previewCtx.fillStyle = "#fff";
+            previewCtx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
+
+            // Frame styling
+            const borderWidth = 30;
+            const textHeight = 100;
+            previewCtx.strokeStyle = color;
+            previewCtx.fillStyle = color;
+            previewCtx.lineWidth = 6;
+
+            // Draw border
+            previewCtx.fillRect(0, 0, previewCanvas.width, borderWidth); // Top
+            previewCtx.fillRect(0, previewCanvas.height - borderWidth - textHeight, previewCanvas.width, borderWidth + textHeight); // Bottom
+            previewCtx.fillRect(0, 0, borderWidth, previewCanvas.height); // Left
+            previewCtx.fillRect(previewCanvas.width - borderWidth, 0, borderWidth, previewCanvas.height); // Right
+
+            // Add text
+            previewCtx.fillStyle = color;
+            previewCtx.font = `60px 'Helvetica Neue', Arial`;
+            previewCtx.textAlign = "center";
+            previewCtx.fillText(text, previewCanvas.width / 2, previewCanvas.height - borderWidth - 20);
+
+            // Draw photos
+            if (layout === "strip" && photos.length >= 4) {
+                // 4x1 Photo Strip (2x6 inches, 600x1800 pixels)
+                const photoWidth = 600 - borderWidth * 2;
+                const photoHeight = (1800 - textHeight - borderWidth * 3) / 4;
+                photos.slice(0, 4).forEach((photo, i) => {
+                    const img = new Image();
+                    img.src = photo;
+                    img.onload = () => {
+                        previewCtx.drawImage(img, borderWidth, borderWidth + i * (photoHeight + borderWidth), photoWidth, photoHeight);
+                        if (i === 3) printBtn.disabled = false;
+                    };
+                });
+            } else if (layout === "grid" && photos.length >= 4) {
+                // 2x2 Grid (4x6 inches, 1200x1800 pixels)
+                const photoWidth = (1200 - borderWidth * 3) / 2;
+                const photoHeight = (1800 - textHeight - borderWidth * 3) / 2;
+                photos.slice(0, 4).forEach((photo, i) => {
+                    const img = new Image();
+                    img.src = photo;
+                    img.onload = () => {
+                        const x = borderWidth + (i % 2) * (photoWidth + borderWidth);
+                        const y = borderWidth + Math.floor(i / 2) * (photoHeight + borderWidth);
+                        previewCtx.drawImage(img, x, y, photoWidth, photoHeight);
+                        if (i === 3) printBtn.disabled = false;
+                    };
+                });
+            } else if (layout === "single" && photos.length >= 1) {
+                // Single Photo (4x6 inches, 1200x1800 pixels)
+                const photoWidth = 1200 - borderWidth * 2;
+                const photoHeight = 1800 - textHeight - borderWidth * 2;
+                const img = new Image();
+                img.src = photos[0];
+                img.onload = () => {
+                    previewCtx.drawImage(img, borderWidth, borderWidth, photoWidth, photoHeight);
+                    printBtn.disabled = false;
+                };
+            }
+        }
+
+        // Start photo booth sequence
+        async function startPhotoBooth() {
+            photoBtn.disabled = true;
+            clearBtn.disabled = true;
+            let countdown = 3;
+            const maxPhotos = layoutSelect.value === "single" ? 1 : 4;
+
+            updateStatus("Get ready!");
+
+            // Countdown for each photo
+            for (let i = 0; i < maxPhotos; i++) {
+                countdown = 3;
+                while (countdown > 0) {
+                    video.setAttribute("data-countdown", countdown);
+                    updateStatus(`Photo ${i + 1} in ${countdown}...`);
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    countdown--;
+                }
+                video.removeAttribute("data-countdown");
+                const photoData = takePhoto();
+                photos.push(photoData);
+
+                // Add photo to grid
+                const img = document.createElement("img");
+                img.src = photoData;
+                img.alt = `Captured photo ${i + 1}`;
+                img.addEventListener("click", () => {
+                    const win = window.open("");
+                    win.document.write(`<img src="${photoData}" style="max-width:100%;">`);
+                });
+                photoGrid.appendChild(img);
+
+                updateStatus(`Photo ${i + 1} captured!`);
+                if (i < maxPhotos - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 1000)); // Pause between photos
+                }
+            }
+
+            updateStatus("Photos captured! Check the preview and download.");
+            createPrintLayout();
+            photoBtn.disabled = false;
+            clearBtn.disabled = false;
+        }
+
+        // Download print layout
+        function downloadPrint() {
+            const link = document.createElement("a");
+            link.download = `photo-booth-${new Date().toISOString().slice(0, 10)}.png`;
+            link.href = previewCanvas.toDataURL("image/png");
+            link.click();
+            updateStatus("Print layout downloaded!");
+        }
+
+        // Clear photos
+        function clearPhotos() {
+            photos = [];
+            photoGrid.innerHTML = "";
+            previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+            printBtn.disabled = true;
+            updateStatus("Photos cleared. Ready for a new session!");
+        }
+
+        // Event listeners
+        cameraSelect.addEventListener("change", switchCamera);
+        layoutSelect.addEventListener("change", () => {
+            if (photos.length > 0) createPrintLayout();
+        });
+        frameText.addEventListener("input", () => {
+            if (photos.length > 0) createPrintLayout();
+        });
+        frameColor.addEventListener("input", () => {
+            if (photos.length > 0) createPrintLayout();
+        });
+
+        // Initialize the app
+        init();
+    </script>
+</body>
+
+</html>
